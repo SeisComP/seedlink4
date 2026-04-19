@@ -1179,9 +1179,9 @@ void SeedlinkSession::handleFeed(const char *data, size_t len) {
 			SEISCOMP_INFO("new station %s", ringName.c_str());
 
 			ring = _storage->createRing(ringName,
-						    global.segments *
-						    global.segsize,
-						    global.recsize);
+						    global.segments * global.segsize,
+						    global.recsize,
+						    global.granularity);
 
 			if ( !ring ) {
 				SEISCOMP_ERROR("could not create ring");
@@ -1254,9 +1254,9 @@ void SeedlinkSession::startTransfer() {
 
 		if ( !ring ) {
 			ring = _storage->createRing(name,
-						    global.segments *
-						    global.segsize,
-						    global.recsize);
+						    global.segments * global.segsize,
+						    global.recsize,
+						    global.granularity);
 
 			if ( !ring ) {
 				SEISCOMP_ERROR("could not create ring");

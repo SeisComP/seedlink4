@@ -32,6 +32,7 @@
 				<option long-flag="segments" argument="int" param-ref="segments"/>
 				<option long-flag="segsize" argument="int" param-ref="segsize"/>
 				<option long-flag="recsize" argument="int" param-ref="recsize"/>
+				<option long-flag="granularity" argument="int" param-ref="granularity"/>
 			</group>
 		</command-line>
 
@@ -49,20 +50,25 @@
 			</parameter>
 			<parameter name="segments" type="int" default="10">
 				<description>
-				The ringbuffer is currenly segment-based. This parameter defines the
-				number of segments per station. By default, 10 segments will be used.
+				Number of segments per station. By default, 10 segments will be used.
 				</description>
 			</parameter>
 			<parameter name="segsize" type="int" default="1000">
 				<description>
-				Defines the segment size in records. By default, 1000 records will be
-				used.
+				Segment size in records. By default, 1000 records will be used.
 				</description>
 			</parameter>
-			<parameter name="recsize" type="int" default="10240">
+			<parameter name="recsize" type="int" default="1024">
 				<description>
-				Defines the maximum record size, including metadata header.
-			       	The default is 10240 bytes.
+				Maximum record size in bytes, including metadata header. The default
+				is 1024 bytes. Total size of the ringbuffer per station is
+				segments*segsize*recsize. These parameters can be overridden on
+				a station-by-station basis using bindings.
+				</description>
+			</parameter>
+			<parameter name="granularity" type="int" default="600">
+				<description>
+				Time index granularity. Default is 600 seconds.
 				</description>
 			</parameter>
 		</configuration>

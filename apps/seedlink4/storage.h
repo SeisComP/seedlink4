@@ -93,6 +93,7 @@ class CursorOwner {
 		virtual RecordPtr get(Sequence seq) =0;
 		virtual Sequence startseq() =0;
 		virtual Sequence endseq() =0;
+		virtual Sequence sequence(const Core::Time &t) =0;
 };
 
 
@@ -127,13 +128,33 @@ class Stream : public Core::BaseObject {
 };
 
 
+DEFINE_SMARTPOINTER(TimeSequence);
+class TimeSequence : public Core::BaseObject {
+	DECLARE_SC_CLASS(TimeSequence)
+
+	public:
+		TimeSequence() {}
+		TimeSequence(const Core::Time &time,
+			  Sequence seq);
+
+		void serialize(Core::Archive &ar);
+
+		Core::Time time();
+		Sequence seq();
+
+	private:
+		Core::Time _time;
+		Sequence _seq;
+};
+
+
 DEFINE_SMARTPOINTER(Ring);
 class Ring : public Core::BaseObject, private CursorOwner {
 	friend class RingInfo;
 
 	public:
 		Ring(const std::string &path, const std::string &name,
-		     int nblocks=0, int blocksize=0);
+		     int nblocks=0, int blocksize=0, int granularity=0);
 
 		~Ring();
 
@@ -141,10 +162,11 @@ class Ring : public Core::BaseObject, private CursorOwner {
 		void serialize(Core::Archive &ar);
 		bool load();
 		void save();
-		bool ensure(int nblocks, int blocksize);
+		bool ensure(int nblocks, int blocksize, int granularity);
 		bool put(RecordPtr buf, Sequence seq);
 		Sequence startseq();
 		Sequence endseq();
+		Sequence sequence(const Core::Time &t);
 		CursorPtr cursor(CursorClient &client);
 
 	private:
@@ -159,6 +181,8 @@ class Ring : public Core::BaseObject, private CursorOwner {
 		int _backfill;
 		std::streambuf *_sb;
 		std::map<std::string, StreamPtr> _streams;
+		std::map<Core::Time, Sequence> _index;
+		int _granularity;
 		std::set<Cursor*> _cursors;
 
 		void removeCursor(Cursor* c);
@@ -173,7 +197,8 @@ class Storage : public Core::BaseObject {
 
 		RingPtr createRing(const std::string &name,
 				   int nblocks,
-				   int blocksize);
+				   int blocksize,
+				   int granularity);
 
 		RingPtr ring(const std::string &name);
 

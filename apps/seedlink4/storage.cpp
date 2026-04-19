@@ -153,6 +153,16 @@ bool Cursor::match(RecordPtr rec) {
 RecordPtr Cursor::next() {
 	RecordPtr rec;
 
+	if ( _starttime && _seq == _startseq ) {
+		_seq = _owner.sequence(*_starttime);
+
+		Sequence startseq = max(_startseq, _owner.startseq());
+
+		if ( _seq > startseq )
+			SEISCOMP_DEBUG("%s: skipped seq %ld..%ld using time index",
+				       ringName(), startseq, _seq);
+	}
+
 	while ( (rec = _owner.get(_seq)) != NULL ) {
 		if ( !_starttime || rec->endTime() >= _starttime ) {
 			if ( _seq != rec->sequence() )
@@ -304,9 +314,48 @@ void Stream::serialize(Core::Archive &ar) {
 
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-Ring::Ring(const string &path, const string &name, int nblocks, int blocksize)
+IMPLEMENT_SC_CLASS(TimeSequence, "Seiscomp::Applications::Seedlink::TimeSequence");
+TimeSequence::TimeSequence(const Core::Time &time, Sequence seq)
+: _time(time), _seq(seq) {
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Core::Time TimeSequence::time() {
+	return _time;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Sequence TimeSequence::seq() {
+	return _seq;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+void TimeSequence::serialize(Core::Archive &ar) {
+	ar & NAMED_OBJECT_HINT("time", _time, Core::Archive::STATIC_TYPE);
+	ar & NAMED_OBJECT_HINT("seq", (int64_t&)_seq, Core::Archive::STATIC_TYPE);
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Ring::Ring(const string &path, const string &name, int nblocks, int blocksize, int granularity)
 : _path(path + "/" + name), _name(name), _nblocks(nblocks), _blocksize(blocksize)
-, _shift(0), _baseseq(0), _startseq(SEQ_UNSET), _endseq(0), _backfill(-1) {
+, _shift(0), _baseseq(0), _startseq(SEQ_UNSET), _endseq(0), _backfill(-1)
+, _granularity(granularity) {
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -335,11 +384,16 @@ void Ring::setBackfill(int backfill) {
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 void Ring::serialize(Core::Archive &ar) {
 	std::vector<StreamPtr> streams;
+	std::vector<TimeSequencePtr> index;
 
 	if ( !ar.isReading() ) {
 		streams.reserve(_streams.size());
 		for ( const auto &s : _streams )
 			streams.push_back(s.second);
+
+		index.reserve(_index.size());
+		for ( const auto &i : _index )
+			index.push_back(new TimeSequence(i.first, i.second));
 	}
 
 	ar & NAMED_OBJECT_HINT("nblocks", _nblocks, Core::Archive::STATIC_TYPE);
@@ -348,11 +402,16 @@ void Ring::serialize(Core::Archive &ar) {
 	ar & NAMED_OBJECT_HINT("baseseq", (int64_t&)_baseseq, Core::Archive::STATIC_TYPE);
 	ar & NAMED_OBJECT_HINT("startseq", (int64_t&)_startseq, Core::Archive::STATIC_TYPE);
 	ar & NAMED_OBJECT_HINT("endseq", (int64_t&)_endseq, Core::Archive::STATIC_TYPE);
+	ar & NAMED_OBJECT_HINT("granularity", _granularity, Core::Archive::STATIC_TYPE);
 	ar & NAMED_OBJECT_HINT("streams", streams, Core::Archive::STATIC_TYPE);
+	ar & NAMED_OBJECT_HINT("index", index, Core::Archive::STATIC_TYPE);
 
 	if ( ar.isReading() ) {
 		for ( const auto &s : streams )
 			_streams.insert(pair<string, StreamPtr>(s->id(), s));
+
+		for ( const auto &i : index )
+			_index.insert(pair<Core::Time, Sequence>(i->time(), i->seq()));
 	}
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -430,6 +489,7 @@ bool Ring::load() {
 		_startseq = SEQ_UNSET;
 		_endseq = 0;
 		_streams.clear();
+		_index.clear();
 
 		IO::JSONArchive ar;
 
@@ -458,6 +518,9 @@ bool Ring::load() {
 		_startseq = SEQ_UNSET;
 		_endseq = 0;
 		_streams.clear();
+		_index.clear();
+
+		Core::Time indextime;
 
 		for ( int i = 0; i < _nblocks; ++i ) {
 			_sb->pubseekoff(i * _blocksize, ios_base::beg);
@@ -476,6 +539,7 @@ bool Ring::load() {
 
 			if ( rec->sequence() < _startseq ) {
 				_startseq = rec->sequence();
+				indextime = Core::Time::Null;
 			}
 
 			if ( rec->sequence() >= _endseq ) {
@@ -508,6 +572,11 @@ bool Ring::load() {
 
 				if ( rec->endTime() > s->endTime() )
 					s->setEndTime(rec->endTime());
+			}
+
+			if ( _granularity > 0 && rec->endTime() >= indextime + Core::TimeSpan(_granularity, 0) ) {
+				_index.insert(pair<Core::Time, Sequence>(rec->endTime(), rec->sequence()));
+				indextime = rec->endTime();
 			}
 		}
 	}
@@ -548,11 +617,11 @@ void Ring::save() {
 
 
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-bool Ring::ensure(int nblocks, int blocksize) {
+bool Ring::ensure(int nblocks, int blocksize, int granularity) {
 	bool recreate = false;
 
 	if ( _nblocks != nblocks ) {
-		SEISCOMP_WARNING("found existing ring %s with number of segments = %d (requested %d)",
+		SEISCOMP_WARNING("found existing ring %s with number of blocks = %d (requested %d)",
 				_name.c_str(),
 				_nblocks,
 				nblocks);
@@ -567,6 +636,16 @@ bool Ring::ensure(int nblocks, int blocksize) {
 				blocksize);
 
 		_blocksize = blocksize;
+		recreate = true;
+	}
+
+	if ( _granularity != granularity ) {
+		SEISCOMP_WARNING("found existing ring %s with time index granularity = %ds (requested %ds)",
+				_name.c_str(),
+				_granularity,
+				granularity);
+
+		_granularity = granularity;
 		recreate = true;
 	}
 
@@ -609,6 +688,7 @@ bool Ring::put(RecordPtr rec, Sequence seq) {
 		_shift = _nblocks - 1;
 		_baseseq = seq - _nblocks + 1;
 		_streams.clear();
+		_index.clear();
 	}
 	else {
 		while ( seq >= _baseseq + _nblocks ) {
@@ -669,11 +749,31 @@ bool Ring::put(RecordPtr rec, Sequence seq) {
 		s->setEndTime(rec->endTime());
 	}
 
-	if ( _startseq > seq )
+	if ( _startseq > seq ) {
 		_startseq = seq;
+	}
 
-	if ( _endseq < seq + 1 )
+	if ( _endseq < seq + 1 ) {
 		_endseq = seq + 1;
+	}
+
+	if ( _granularity > 0 ) {
+		if ( _index.empty() ) {
+			_index.insert(pair<Core::Time, Sequence>(rec->endTime(), rec->sequence()));
+		}
+		else {
+			auto ri = _index.rbegin();
+			if ( rec->endTime() >= ri->first + Core::TimeSpan(_granularity, 0) &&
+					rec->sequence() > ri->second) {
+				_index.insert(pair<Core::Time, Sequence>(rec->endTime(), rec->sequence()));
+			}
+
+			auto i = _index.begin();
+			while ( i != _index.end() && i->second < _startseq ) {
+				_index.erase(i++);
+			}
+		}
+	}
 
 	// dataAvail() may delete the current item
 	set<Cursor*>::iterator i = _cursors.begin();
@@ -740,6 +840,28 @@ Sequence Ring::endseq() {
 
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Sequence Ring::sequence(const Core::Time &t) {
+	Sequence seq = _startseq;
+
+	if ( !_index.empty() ) {
+		auto i = _index.lower_bound(t);
+
+		if ( i == _index.end() ) {
+			seq = _endseq;
+		}
+		else if ( i != _index.begin() ) {
+			seq = i->second;
+		}
+	}
+
+	return seq;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 CursorPtr Ring::cursor(CursorClient &client) {
 	Cursor* c = new Cursor(*this, client, _name);
 	_cursors.insert(c);
@@ -786,8 +908,9 @@ Storage::Storage(const string &path)
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 RingPtr Storage::createRing(const string &name,
 			    int nblocks,
-			    int blocksize) {
-	RingPtr ring = new Ring(_path, name, nblocks, blocksize);
+			    int blocksize,
+			    int granularity) {
+	RingPtr ring = new Ring(_path, name, nblocks, blocksize, granularity);
 
 	if ( !ring->load() )
 		throw runtime_error("could not initialize ring at " + _path + "/" + name);

@@ -25,7 +25,8 @@ namespace Seedlink {
 
 // Define default configuration
 struct Settings : System::Application::AbstractSettings {
-	Settings(): port(18000), sslport(0), segments(10), segsize(1000), recsize(10240) {
+	Settings(): port(18000), sslport(0), segments(10), segsize(1000), recsize(1024),
+		granularity(600) {
 		filebase = Environment::Instance()->installDir() + "/var/lib/seedlink4";
 		organization = "Unconfigured";
 		trusted = "127.0.0.1/8";
@@ -38,6 +39,7 @@ struct Settings : System::Application::AbstractSettings {
 	int segments;
 	int segsize;
 	int recsize;
+	int granularity;
 	std::string certificate;
 	std::string privateKey;
 	std::string filebase;
@@ -77,7 +79,11 @@ struct Settings : System::Application::AbstractSettings {
 		      true)
 		& cfg(recsize, "recsize")
 		& cli(recsize, "Server", "recsize",
-		      "Maximum record size, including metadata header",
+		      "Maximum record size in bytes, including metadata header",
+		      true)
+		& cfg(granularity, "granularity")
+		& cli(recsize, "Server", "granularity",
+		      "Time index granularity in seconds",
 		      true)
 		& cfg(organization, "organization")
 		& cfg(trusted, "trusted")

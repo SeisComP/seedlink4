@@ -58,7 +58,8 @@ bool Application::init() {
 	SEISCOMP_INFO("Storage location: %s", global.filebase.c_str());
 	SEISCOMP_INFO("Default number of segments per station: %d", global.segments);
 	SEISCOMP_INFO("Default segment size in records: %d", global.segsize);
-	SEISCOMP_INFO("Default maximum record size: %d", global.recsize);
+	SEISCOMP_INFO("Default maximum record size: %d bytes", global.recsize);
+	SEISCOMP_INFO("Default time index granularity: %d seconds", global.granularity);
 
 	_server.setTriggerMode(Wired::DeviceGroup::LevelTriggered);
 
@@ -95,15 +96,22 @@ bool Application::init() {
 						i.stationCode().c_str(),
 						recsize);
 
+			int granularity = global.granularity;
+			if ( !keys->getInt(granularity, "granularity") )
+				SEISCOMP_INFO("%s %s using default granularity = %d",
+						i.networkCode().c_str(),
+						i.stationCode().c_str(),
+						granularity);
+
 			RingPtr ring = storage->ring(i.networkCode() + "." + i.stationCode());
 
 			if ( ring )
-				ring->ensure(segments * segsize, recsize);
+				ring->ensure(segments * segsize, recsize, granularity);
 			else
 				ring = storage->createRing(i.networkCode() + "." + i.stationCode(),
-							   segments *
-							   segsize,
-							   recsize);
+							   segments * segsize,
+							   recsize,
+							   granularity);
 
 			int backfill = -1;
 			keys->getInt(backfill, "backfillHint");
