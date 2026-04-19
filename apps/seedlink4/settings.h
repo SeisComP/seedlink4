@@ -55,8 +55,8 @@ struct Settings : System::Application::AbstractSettings {
 		& cli(port, "Server", "port",
 		      "TCP port to for data requests with SeedLink protocol",
 		      true)
-		& cfg(port, "sslport")
-		& cli(port, "Server", "sslport",
+		& cfg(sslport, "sslport")
+		& cli(sslport, "Server", "sslport",
 		      "TCP port to for data requests with SeedLink protocol using SSL",
 		      true)
 		& cfg(certificate, "certificate")
@@ -82,14 +82,14 @@ struct Settings : System::Application::AbstractSettings {
 		      "Maximum record size in bytes, including metadata header",
 		      true)
 		& cfg(granularity, "granularity")
-		& cli(recsize, "Server", "granularity",
+		& cli(granularity, "Server", "granularity",
 		      "Time index granularity in seconds",
 		      true)
 		& cfg(organization, "organization")
 		& cfg(trusted, "trusted")
 		& cfg(access, "access")
-		& cfg(access, "defaultNetwork")
-		& cfg(access, "defaultStation");
+		& cfg(defaultNetwork, "defaultNetwork")
+		& cfg(defaultStation, "defaultStation");
 	}
 };
 
