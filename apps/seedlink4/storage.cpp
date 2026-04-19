@@ -850,6 +850,7 @@ Sequence Ring::sequence(const Core::Time &t) {
 			seq = _endseq;
 		}
 		else if ( i != _index.begin() ) {
+			--i;
 			seq = i->second;
 		}
 	}
