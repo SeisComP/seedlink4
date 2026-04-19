@@ -19,4 +19,8 @@ $ git submodule update
 
 ## Compilation
 
-Follow the build instructions from the `seiscomp` repository.
+Follow the build instructions from the [seiscomp](https://github.com/SeisComP/seiscomp) repository.
+
+# Documentation
+
+https://github.com/SeisComP/seedlink4/blob/main/apps/seedlink4/descriptions/seedlink4.rst
