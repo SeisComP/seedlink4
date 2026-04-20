@@ -28,6 +28,9 @@
 
 			<group name="Server">
 				<option long-flag="port" argument="int" param-ref="port"/>
+				<option long-flag="sslport" argument="int" param-ref="sslport"/>
+				<option long-flag="certificate" argument="string" param-ref="certificate"/>
+				<option long-flag="privateKey" argument="string" param-ref="privateKey"/>
 				<option long-flag="filebase" argument="string" param-ref="filebase"/>
 				<option long-flag="segments" argument="int" param-ref="segments"/>
 				<option long-flag="segsize" argument="int" param-ref="segsize"/>
@@ -39,13 +42,29 @@
 		<configuration>
 			<parameter name="port" type="int" default="18000">
 				<description>
-				Defines the TCP port for SeedLink connections. By default
+				TCP port for SeedLink connections. By default
 				the SeedLink standard port 18000 will be used.
+				</description>
+			</parameter>
+			<parameter name="sslport" type="int" default="0">
+				<description>
+				TCP port for encrypted (SSL) SeedLink connections.
+				Disabled (0) by default.
+				</description>
+			</parameter>
+			<parameter name="certificate" type="string" default="">
+				<description>
+				Location of SSL certificate file.
+				</description>
+			</parameter>
+			<parameter name="privateKey" type="string" default="">
+				<description>
+				Location of SSL private key file.
 				</description>
 			</parameter>
 			<parameter name="filebase" type="string" default="@ROOTDIR@/var/lib/seedlink4">
 				<description>
-				Defines the location of storage.
+				Location of storage.
 				</description>
 			</parameter>
 			<parameter name="segments" type="int" default="10">
@@ -63,12 +82,41 @@
 				Maximum record size in bytes, including metadata header. The default
 				is 1024 bytes. Total size of the ringbuffer per station is
 				segments*segsize*recsize. These parameters can be overridden on
-				a station-by-station basis using bindings.
+				a station-by-station basis using seedlink bindings.
 				</description>
 			</parameter>
 			<parameter name="granularity" type="int" default="600">
 				<description>
 				Time index granularity. Default is 600 seconds.
+				</description>
+			</parameter>
+			<parameter name="organization" type="string" default="Unconfigured">
+				<description>
+				Data center description in HELLO response.
+				</description>
+			</parameter>
+			<parameter name="trusted" type="list:string" default="127.0.0.0/8">
+				<description>
+				List of IP adresses and/or usernames of clients who have FEED and
+				INFO CONNECTIONS permission and full access to all stations
+				regardless of the "access" setting.
+				</description>
+			</parameter>
+			<parameter name="access" type="list:string" default="">
+				<description>
+				List of IP adresses and/or usernames that can access stations by
+				default. This can be overridden on a station-by-station basis using
+				seedlink bindings. Empty means no access restrictions.
+				</description>
+			</parameter>
+			<parameter name="defaultNetwork" type="string" default="XX">
+				<description>
+				Network code of uni-station mode (obsolete).
+				</description>
+			</parameter>
+			<parameter name="defaultStation" type="string" default="XXX">
+				<description>
+				Station code of uni-station mode (obsolete).
 				</description>
 			</parameter>
 		</configuration>

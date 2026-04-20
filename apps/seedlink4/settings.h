@@ -29,7 +29,7 @@ struct Settings : System::Application::AbstractSettings {
 		granularity(600) {
 		filebase = Environment::Instance()->installDir() + "/var/lib/seedlink4";
 		organization = "Unconfigured";
-		trusted = "127.0.0.1/8";
+		trusted = "127.0.0.0/8";
 		defaultNetwork = "XX";
 		defaultStation = "XXX";
 	}
