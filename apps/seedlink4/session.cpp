@@ -1344,41 +1344,41 @@ void SeedlinkSession::collectData() {
 	buffer.reserve(6000);
 
 	while ( !_cursorsAvail.empty() && buffer.size() < 5120 ) {
-		while ( _cursorIter != _cursorsAvail.end() ) {
-			RecordPtr rec = (*_cursorIter)->next();
+		if ( _cursorIter == _cursorsAvail.end() )
+			_cursorIter = _cursorsAvail.begin();
 
-			if ( rec ) {
-				if ( _slproto < 4.0 ) {
-					if ( rec->format().substr(0, 1) == "2" && rec->payloadLength() == 512 ) {
-						char seqstr[7];
-						snprintf(seqstr, 7, "%06llX", (long long unsigned int)(rec->sequence() & 0xffffff));
-						buffer.append("SL");
-						buffer.append(seqstr);
-						buffer.append(rec->payload());
-					}
-				}
-				else {
-					Sequence seq = rec->sequence();
-					uint32_t payloadLength = rec->payloadLength();
-					uint8_t stationLength = rec->station().length();
-					buffer.append("SE");
-					buffer.append(rec->format());
-					buffer.append((char *)&payloadLength, 4);  // TODO: byteorder
-					buffer.append((char *)&seq, 8);            // TODO: byteorder
-					buffer.append((char *)&stationLength, 1);
-					buffer.append(rec->station());
+		RecordPtr rec = (*_cursorIter)->next();
+
+		if ( rec ) {
+			if ( _slproto < 4.0 ) {
+				if ( rec->format().substr(0, 1) == "2" && rec->payloadLength() == 512 ) {
+					char seqstr[7];
+					snprintf(seqstr, 7, "%06llX", (long long unsigned int)(rec->sequence() & 0xffffff));
+					buffer.append("SL");
+					buffer.append(seqstr);
 					buffer.append(rec->payload());
 				}
 			}
 			else {
-				if ( (*_cursorIter)->endOfData() )
-					_cursors.erase((*_cursorIter)->ringName());
-
-				_cursorsAvail.erase(_cursorIter++);
+				Sequence seq = rec->sequence();
+				uint32_t payloadLength = rec->payloadLength();
+				uint8_t stationLength = rec->station().length();
+				buffer.append("SE");
+				buffer.append(rec->format());
+				buffer.append((char *)&payloadLength, 4);  // TODO: byteorder
+				buffer.append((char *)&seq, 8);            // TODO: byteorder
+				buffer.append((char *)&stationLength, 1);
+				buffer.append(rec->station());
+				buffer.append(rec->payload());
 			}
 		}
+		else {
+			if ( (*_cursorIter)->endOfData() )
+				_cursors.erase((*_cursorIter)->ringName());
 
-		_cursorIter = _cursorsAvail.begin();
+			_cursorsAvail.erase(_cursorIter++);
+			break;
+		}
 	}
 
 	if ( _cursors.empty() ) {

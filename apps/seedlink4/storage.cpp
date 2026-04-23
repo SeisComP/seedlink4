@@ -164,17 +164,20 @@ RecordPtr Cursor::next() {
 	}
 
 	while ( (rec = _owner.get(_seq)) != NULL ) {
-		if ( !_starttime || rec->endTime() >= _starttime ) {
-			if ( _seq != rec->sequence() )
+		if ( !_starttime || rec->endTime() >= *_starttime ) {
+			if ( rec->sequence() != _seq )
 				++_gaps;
 
 			_seq = rec->sequence() + 1;
 
-			if ( _endtime && rec->startTime() > _endtime ) {
+			if ( _endtime && rec->startTime() > *_endtime + Core::TimeSpan(1000, 0) ) {
 				_eod = true;
 				_owner.removeCursor(this);
 				return NULL;
 			}
+
+			if ( _endtime && rec->startTime() > *_endtime )
+				continue;
 
 			if ( !match(rec) )
 				continue;
@@ -685,7 +688,7 @@ bool Ring::put(RecordPtr rec, Sequence seq) {
 			_sb->sputc(0);
 		}
 
-		_shift = _nblocks - 1;
+		_shift = 0;
 		_baseseq = seq - _nblocks + 1;
 		_streams.clear();
 		_index.clear();
@@ -704,8 +707,12 @@ bool Ring::put(RecordPtr rec, Sequence seq) {
 
 				ar.close();
 
-				if ( rec->sequence() != _baseseq )
-					throw runtime_error(datafile + " invalid sequence number at block " + to_string(_shift));
+				if ( rec->sequence() != _baseseq ) {
+					SEISCOMP_ERROR("%s (put): invalid seq %ld, expected %ld",
+						       _name, rec->sequence(), _baseseq);
+					SEISCOMP_ERROR("%s (put): seq %ld, shift %d, nblocks %d, blocksize %d",
+						       _name, seq, _shift, _nblocks, _blocksize);
+				}
 
 				_sb->pubseekoff(_shift * _blocksize, ios_base::beg);
 				_sb->sputc(0);
@@ -811,6 +818,15 @@ RecordPtr Ring::get(Sequence seq) {
 			throw runtime_error("could not de-serialize record");
 
 		ar.close();
+
+		if ( rec->sequence() != seq ) {
+			SEISCOMP_ERROR("%s (get): invalid seq %ld, expected %ld, endseq %ld",
+				       _name, rec->sequence(), seq, _endseq);
+			SEISCOMP_ERROR("%s (get): baseseq %ld, shift %d, nblocks %d, blocksize %d",
+				       _name, _baseseq, _shift, _nblocks, _blocksize);
+			break;
+		}
+
 		return rec;
 	}
 
@@ -844,7 +860,7 @@ Sequence Ring::sequence(const Core::Time &t) {
 	Sequence seq = _startseq;
 
 	if ( !_index.empty() ) {
-		auto i = _index.lower_bound(t);
+		auto i = _index.lower_bound(t - Core::TimeSpan(_granularity, 0));
 
 		if ( i == _index.end() ) {
 			seq = _endseq;
