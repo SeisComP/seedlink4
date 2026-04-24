@@ -154,7 +154,7 @@ RecordPtr Cursor::next() {
 	RecordPtr rec;
 
 	if ( _starttime && _seq == _startseq ) {
-		_seq = _owner.sequence(*_starttime);
+		_seq = max(_startseq, _owner.sequence(*_starttime));
 
 		Sequence startseq = max(_startseq, _owner.startseq());
 
@@ -666,8 +666,6 @@ bool Ring::ensure(int nblocks, int blocksize, int granularity) {
 
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 bool Ring::put(RecordPtr rec, Sequence seq) {
-	const string datafile = _path + "/ring.dat";
-
 	if ( seq < _baseseq ) {
 		SEISCOMP_ERROR("record sequece number is too low (%lu < %lu)",
 			       seq,
@@ -703,13 +701,13 @@ bool Ring::put(RecordPtr rec, Sequence seq) {
 				rec->serializeHeader(ar);
 
 				if ( !ar.success() )
-					throw runtime_error(datafile + " corrupt at block " + to_string(_shift));
+					throw runtime_error(_path + "/ring.dat corrupt at block " + to_string(_shift));
 
 				ar.close();
 
 				if ( rec->sequence() != _baseseq ) {
-					SEISCOMP_ERROR("%s (put): invalid seq %ld, expected %ld",
-						       _name, rec->sequence(), _baseseq);
+					SEISCOMP_ERROR("%s (put): invalid seq %ld != %ld, startseq %ld, endseq %ld",
+						       _name, rec->sequence(), _baseseq, _startseq, _endseq);
 					SEISCOMP_ERROR("%s (put): seq %ld, shift %d, nblocks %d, blocksize %d",
 						       _name, seq, _shift, _nblocks, _blocksize);
 				}
@@ -800,7 +798,8 @@ RecordPtr Ring::get(Sequence seq) {
 		seq = _startseq;
 
 	while ( seq < _endseq ) {
-		_sb->pubseekoff(((seq - _baseseq + _shift) % _nblocks) * _blocksize, ios_base::beg);
+		const auto n = (seq - _baseseq + _shift) % _nblocks;
+		_sb->pubseekoff(n * _blocksize, ios_base::beg);
 
 		if ( !_sb->sgetc() ) {
 			++seq;
@@ -815,16 +814,17 @@ RecordPtr Ring::get(Sequence seq) {
 		rec->serializePayload(ar);
 
 		if ( !ar.success() )
-			throw runtime_error("could not de-serialize record");
+			throw runtime_error(_path + "/ring.dat corrupt at block " + to_string(n));
 
 		ar.close();
 
 		if ( rec->sequence() != seq ) {
-			SEISCOMP_ERROR("%s (get): invalid seq %ld, expected %ld, endseq %ld",
-				       _name, rec->sequence(), seq, _endseq);
+			SEISCOMP_ERROR("%s (get): invalid seq %ld != %ld, startseq %ld, endseq %ld",
+				       _name, rec->sequence(), seq, _startseq, _endseq);
 			SEISCOMP_ERROR("%s (get): baseseq %ld, shift %d, nblocks %d, blocksize %d",
 				       _name, _baseseq, _shift, _nblocks, _blocksize);
-			break;
+			++seq;
+			continue;
 		}
 
 		return rec;
