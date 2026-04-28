@@ -217,6 +217,7 @@ class SeedlinkSession : public Wired::ClientSession, private CursorClient {
 
 		string host();
 		int port();
+		string user();
 		bool checkAccess(const string &station,
 				 const Wired::Socket::IPAddress &ip,
 				 const string &user);
@@ -319,6 +320,15 @@ string SeedlinkSession::host() {
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 int SeedlinkSession::port() {
 	return _port;
+}
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+string SeedlinkSession::user() {
+	return _user;
 }
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -1248,7 +1258,7 @@ void SeedlinkSession::startTransfer() {
 
 	if ( _stations.empty() && _wildcardStations.empty() ) {
 		// uni-station mode
-		string name = global.defaultNetwork + "." + global.defaultStation;
+		string name = global.defaultNetwork + "_" + global.defaultStation;
 
 		RingPtr ring = _storage->ring(name);
 

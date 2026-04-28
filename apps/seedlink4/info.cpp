@@ -91,6 +91,7 @@ CursorInfo::CursorInfo(double slproto, CursorPtr cursor)
 void CursorInfo::serialize(Core::Archive &ar) {
 	string host = _cursor->_client.host();
 	int port = _cursor->_client.port();
+	string user = _cursor->_client.user();
 
 	if ( _slproto < 4.0 ) {
 		string ctime = _cursor->_ctime.toString("%Y/%m/%d %T.%4f");
@@ -118,6 +119,7 @@ void CursorInfo::serialize(Core::Archive &ar) {
 
 		ar & NAMED_OBJECT_HINT("host", host, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("port", port, ARCHIVE_FLAGS);
+		ar & NAMED_OBJECT_HINT("user", user, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("ctime", ctime, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("begin_seq", begin_seq, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("current_seq", current_seq, ARCHIVE_FLAGS);
@@ -145,6 +147,7 @@ void CursorInfo::serialize(Core::Archive &ar) {
 
 		ar & NAMED_OBJECT_HINT("host", host, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("port", port, ARCHIVE_FLAGS);
+		ar & NAMED_OBJECT_HINT("user", user, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("ctime", _cursor->_ctime, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("start_seq", (int64_t&)_cursor->_startseq, ARCHIVE_FLAGS);
 		ar & NAMED_OBJECT_HINT("current_seq", (int64_t&)_cursor->_seq, ARCHIVE_FLAGS);

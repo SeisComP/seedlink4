@@ -83,6 +83,7 @@ class CursorClient {
 	public:
 		virtual std::string host() =0;
 		virtual int port() =0;
+		virtual std::string user() =0;
 		virtual void cursorAvail(CursorPtr c, Sequence _seq) =0;
 };
 
